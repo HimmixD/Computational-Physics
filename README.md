@@ -1,0 +1,1 @@
+This space is intended for private use, specifically for university assignments. However, I´ve made it accessible to friends and fellow students I know personally to help us study together. Please keep the content within our circle!
