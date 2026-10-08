@@ -1,0 +1,62 @@
+{
+  "exercises/exercise_00/generate_summary_pdf.py": {
+    "mtime": 1791485742.7497492,
+    "seen": 1791488858.8593438,
+    "ast_hash": "980890907e79fa44286291bc6f7bf9cf",
+    "semantic_hash": "980890907e79fa44286291bc6f7bf9cf"
+  },
+  "exercises/exercise_00/gods_monte_carlo.py": {
+    "mtime": 1791484560.5812428,
+    "seen": 1791488858.8593519,
+    "ast_hash": "f34c0f161b3979364947bb9d4ea0a292",
+    "semantic_hash": "f34c0f161b3979364947bb9d4ea0a292"
+  },
+  "exercises/exercise_00/pi_monte_carlo.py": {
+    "mtime": 1791482651.6002367,
+    "seen": 1791488858.8593552,
+    "ast_hash": "04804c62f43517698c041a430d4356d2",
+    "semantic_hash": "04804c62f43517698c041a430d4356d2"
+  },
+  "README.md": {
+    "mtime": 1791371544.6635497,
+    "seen": 1791488858.8593566,
+    "ast_hash": "215c6622180b590b089c66d21a1d4fb3",
+    "semantic_hash": "215c6622180b590b089c66d21a1d4fb3"
+  },
+  "exercises/exercise_00/exercise_00.pdf": {
+    "mtime": 1791373295.6315086,
+    "seen": 1791488858.8593578,
+    "ast_hash": "6ef64b08cad50be6d2a678bfe5f2e6d1",
+    "semantic_hash": "6ef64b08cad50be6d2a678bfe5f2e6d1"
+  },
+  "exercises/exercise_00/exercise_00_summary.pdf": {
+    "mtime": 1791485663.8444967,
+    "seen": 1791488858.859359,
+    "ast_hash": "84b07a8ca4cf69f3d8de13c3fd7f1823",
+    "semantic_hash": "84b07a8ca4cf69f3d8de13c3fd7f1823"
+  },
+  "exercises/exercise_00/errors.png": {
+    "mtime": 1791482312.8940153,
+    "seen": 1791488858.859361,
+    "ast_hash": "43108e3825a1098c1950c588363f4e44",
+    "semantic_hash": "43108e3825a1098c1950c588363f4e44"
+  },
+  "exercises/exercise_00/gods_monte_carlo_convergence.png": {
+    "mtime": 1791484741.9288056,
+    "seen": 1791488858.8593621,
+    "ast_hash": "bff2f23343ca5507fa0273113eaebee3",
+    "semantic_hash": "bff2f23343ca5507fa0273113eaebee3"
+  },
+  "exercises/exercise_00/mc_principle.png": {
+    "mtime": 1791485555.0219984,
+    "seen": 1791488858.8593633,
+    "ast_hash": "8dfe82060a763692b5ec139b5e5d6ba2",
+    "semantic_hash": "8dfe82060a763692b5ec139b5e5d6ba2"
+  },
+  "exercises/exercise_00/speed_numpy_vs_loops.png": {
+    "mtime": 1791482313.604763,
+    "seen": 1791488858.8593645,
+    "ast_hash": "f2a6a8ba18f49a8b03594046ac9aacda",
+    "semantic_hash": "f2a6a8ba18f49a8b03594046ac9aacda"
+  }
+}
