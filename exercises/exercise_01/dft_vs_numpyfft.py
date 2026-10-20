@@ -95,6 +95,7 @@ def plot_dft_results(
     coefficients: np.ndarray,
     output_file: Path,
     show: bool,
+    signal_name: str,
 ) -> None:
     n = signal.size
     dt = t[1] - t[0]
@@ -103,24 +104,65 @@ def plot_dft_results(
     reconstructed = inverse_dft(coefficients).real
     amplitude = np.abs(shifted)
     positive = frequencies > 0
-    fit_mask = positive & (amplitude > max(amplitude) * 1e-4)
-    fit_exponent, fit_intercept = np.polyfit(
-        np.log(frequencies[fit_mask]), np.log(amplitude[fit_mask]), 1
-    )
-    fit_amplitude = np.exp(fit_intercept) * frequencies[positive] ** fit_exponent
+    positive_frequencies = frequencies[positive]
+    positive_amplitude = amplitude[positive]
+    if signal_name == "triangle":
+        fundamental = 1.0 / 2e-3
+        harmonic = np.rint(positive_frequencies / fundamental).astype(int)
+        odd_harmonics = (harmonic % 2 == 1) & (harmonic > 0)
+        fit_mask = odd_harmonics & (positive_amplitude > positive_amplitude.max() * 1e-4)
+        fit_label = r"odd-harmonic fit: $|a_n| \propto n^{-2}$"
+    else:
+        fit_mask = positive_amplitude > positive_amplitude.max() * 1e-4
+        fit_label = "fit to significant coefficients"
+    fit_exponent = None
+    if np.count_nonzero(fit_mask) >= 2:
+        fit_exponent, fit_intercept = np.polyfit(
+            np.log(positive_frequencies[fit_mask]),
+            np.log(positive_amplitude[fit_mask]),
+            1,
+        )
+        fit_amplitude = np.exp(fit_intercept) * positive_frequencies ** fit_exponent
 
     fig, axes = plt.subplots(1, 2, figsize=(13, 5))
-    axes[0].loglog(frequencies[positive], amplitude[positive], "o", ms=4, label="DFT amplitudes")
-    axes[0].loglog(
-        frequencies[positive],
-        fit_amplitude,
-        "--",
-        label=fr"fit: $|a(f)| \propto f^{{{fit_exponent:.2f}}}$",
-    )
+    if signal_name == "triangle":
+        harmonic = np.rint(positive_frequencies / fundamental).astype(int)
+        odd_harmonics = harmonic % 2 == 1
+        axes[0].loglog(
+            positive_frequencies[odd_harmonics],
+            positive_amplitude[odd_harmonics],
+            "o",
+            ms=4,
+            label="odd harmonics",
+        )
+        axes[0].loglog(
+            positive_frequencies[~odd_harmonics],
+            positive_amplitude[~odd_harmonics],
+            ".",
+            ms=4,
+            color="tab:gray",
+            label="even harmonics (zero theoretically)",
+        )
+    else:
+        axes[0].loglog(
+            positive_frequencies,
+            positive_amplitude,
+            "o",
+            ms=4,
+            label="DFT amplitudes",
+        )
+    if fit_exponent is not None:
+        axes[0].loglog(
+            positive_frequencies[fit_mask],
+            fit_amplitude[fit_mask],
+            "--",
+            color="tab:red",
+            label=fr"{fit_label} (slope {fit_exponent:.2f})",
+        )
     axes[0].set(
         xlabel="frequency [Hz]",
-        ylabel=r"$|a_k|$",
-        title="DFT amplitudes and decay fit",
+        ylabel=r"$|\tilde{a}(\omega)|$",
+        title="Fourier spectrum: coefficient amplitude versus frequency",
     )
     axes[0].legend()
 
@@ -156,12 +198,53 @@ def plot_fft_comparison(
 ) -> None:
     coefficient_error = np.abs(coefficients - numpy_coefficients)
     reconstruction_error = np.abs(inverse_dft(coefficients) - np.fft.ifft(numpy_coefficients))
+    coefficient_indices = np.arange(1, signal.size)
+    coefficient_fit_mask = coefficient_error[1:] > 0
+    coefficient_fit = np.polyfit(
+        np.log(coefficient_indices[coefficient_fit_mask]),
+        np.log(coefficient_error[1:][coefficient_fit_mask]),
+        1,
+    )
+    coefficient_fit_values = np.exp(coefficient_fit[1]) * coefficient_indices ** coefficient_fit[0]
+
+    sample_indices = np.arange(1, signal.size)
+    reconstruction_fit_mask = reconstruction_error[1:] > 0
+    reconstruction_fit = np.polyfit(
+        np.log(sample_indices[reconstruction_fit_mask]),
+        np.log(reconstruction_error[1:][reconstruction_fit_mask]),
+        1,
+    )
+    reconstruction_fit_values = np.exp(reconstruction_fit[1]) * sample_indices ** reconstruction_fit[0]
+
     fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
     axes[0].semilogy(np.arange(signal.size), coefficient_error + 1e-18, "o", ms=3)
-    axes[0].set(xlabel="coefficient index $k$", ylabel=r"$|A_k^{DFT}-A_k^{FFT}|$",
-                title="DFT versus NumPy FFT")
+    axes[0].loglog(
+        coefficient_indices,
+        coefficient_fit_values,
+        "--",
+        color="tab:red",
+        label=fr"power-law fit $\propto k^{{{coefficient_fit[0]:.2f}}}$",
+    )
+    axes[0].set(
+        xlabel="coefficient index $k$",
+        ylabel=r"$|A_k^{DFT}-A_k^{FFT}|$",
+        title="DFT versus NumPy FFT",
+    )
+    axes[0].legend()
     axes[1].semilogy(np.arange(signal.size), reconstruction_error + 1e-18, "o", ms=3)
-    axes[1].set(xlabel="sample index $j$", ylabel="absolute error", title="Inverse-transform error")
+    axes[1].loglog(
+        sample_indices,
+        reconstruction_fit_values,
+        "--",
+        color="tab:red",
+        label=fr"power-law fit $\propto j^{{{reconstruction_fit[0]:.2f}}}$",
+    )
+    axes[1].set(
+        xlabel="sample index $j$",
+        ylabel="absolute error",
+        title="Inverse-transform error",
+    )
+    axes[1].legend()
     for axis in axes:
         axis.grid(True, ls=":", alpha=0.6)
     fig.tight_layout()
@@ -182,6 +265,8 @@ def plot_timing(output_file: Path, show: bool) -> None:
         fft_times.append(benchmark(np.fft.fft, values, repeats))
     dft_times = np.asarray(dft_times)
     fft_times = np.asarray(fft_times)
+    dft_n_squared = dft_times[0] * (sizes / sizes[0]) ** 2
+    fft_n_log_n = fft_times[0] * (sizes * np.log2(sizes)) / (sizes[0] * np.log2(sizes[0]))
 
     print("\nTiming comparison")
     print(f"{'N':>6} {'naive DFT [s]':>16} {'numpy FFT [s]':>16} {'speedup':>12}")
@@ -191,6 +276,8 @@ def plot_timing(output_file: Path, show: bool) -> None:
     fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
     axes[0].loglog(sizes, dft_times, "o-", label="naive DFT")
     axes[0].loglog(sizes, fft_times, "s-", label="NumPy FFT")
+    axes[0].loglog(sizes, dft_n_squared, "--", label=r"$N^2$ theory")
+    axes[0].loglog(sizes, fft_n_log_n, "--", label=r"$N\log_2 N$ theory")
     axes[0].set(xlabel="system size $N$", ylabel="time [s]", title="Execution time")
     axes[0].legend()
     axes[1].semilogx(sizes, dft_times / fft_times, "o-")
@@ -234,7 +321,8 @@ def sampled_analytic_coefficients(n: int, periods: int, aliases: int = 1000) -> 
 def plot_analytic_comparison(output_file: Path, show: bool) -> None:
     period = 2e-3
     samples_per_period = np.array([8, 16, 32, 64, 128])
-    periods = np.array([1e-3, 2e-3, 4e-3, 8e-3])
+    observation_time = 8e-3
+    periods = np.array([1e-3, 2e-3, 4e-3])
     fig, axes = plt.subplots(1, 2, figsize=(12, 4.8))
 
     for samples in samples_per_period:
@@ -242,8 +330,9 @@ def plot_analytic_comparison(output_file: Path, show: bool) -> None:
         n = samples
         t = np.arange(n) * dt
         numerical = np.fft.fft(triangle_signal(t, period=period)) / n
+        analytic_full = sampled_analytic_coefficients(n, periods=1)
         positive = np.arange(1, n // 2)
-        analytic = triangle_fourier_coefficient(positive)
+        analytic = analytic_full[positive]
         axes[0].plot(
             positive / (n / 2),
             np.abs(numerical[positive] - analytic),
@@ -252,26 +341,30 @@ def plot_analytic_comparison(output_file: Path, show: bool) -> None:
             label=fr"$\Delta t={dt * 1e6:.1f}\,\mu$s",
         )
     axes[0].set(xlabel=r"frequency / Nyquist frequency", ylabel="absolute coefficient error",
-                title=r"Changing $\Delta t$ at fixed period time $T=2$ ms")
+                title=r"Sampling effect: changing $\Delta t$ at fixed $T=2$ ms")
+    axes[0].axvspan(0.8, 1.0, color="tab:red", alpha=0.10, label="near Nyquist")
 
     dt = period / 64
     for period_time in periods:
-        n = int(round(period_time / dt))
+        n = int(round(observation_time / dt))
+        number_of_periods = int(round(observation_time / period_time))
         t = np.arange(n) * dt
         numerical = np.fft.fft(triangle_signal(t, period=period_time)) / n
+        analytic_full = sampled_analytic_coefficients(n, periods=number_of_periods)
         positive = np.arange(1, n // 2)
-        analytic = triangle_fourier_coefficient(positive)
+        analytic = analytic_full[positive]
         axes[1].plot(
-            positive / (n / 2),
+            (positive / observation_time) / (1.0 / (2.0 * dt)),
             np.abs(numerical[positive] - analytic),
             "o",
             ms=3,
             label=fr"$T={period_time * 1e3:.1f}$ ms",
         )
     axes[1].set(xlabel=r"frequency / Nyquist frequency", ylabel="absolute coefficient error",
-                title=fr"Changing period time $T$ at fixed $\Delta t={dt * 1e6:.1f}\,\mu$s")
+                title=fr"Period effect: changing $T$ at fixed $\Delta t={dt * 1e6:.1f}\,\mu$s")
     for axis in axes:
         axis.grid(True, ls=":", alpha=0.6)
+        axis.axvspan(0.8, 1.0, color="tab:red", alpha=0.10)
         axis.legend()
     fig.suptitle(
         "Analytic triangle-wave coefficients versus sampled FFT",
@@ -316,7 +409,14 @@ def main() -> None:
         "Reducing dt raises the Nyquist frequency; increasing T improves frequency resolution."
     )
 
-    plot_dft_results(t, signal, coefficients, args.output_dir / "dft_results.png", args.show)
+    plot_dft_results(
+        t,
+        signal,
+        coefficients,
+        args.output_dir / "dft_results.png",
+        args.show,
+        args.signal,
+    )
     plot_fft_comparison(
         coefficients,
         numpy_coefficients,
