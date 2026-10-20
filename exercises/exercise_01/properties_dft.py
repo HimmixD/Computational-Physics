@@ -25,7 +25,6 @@ from reportlab.platypus import (
     KeepTogether,
     PageBreak,
     Paragraph,
-    Preformatted,
     SimpleDocTemplate,
     Spacer,
     Table,
@@ -39,16 +38,6 @@ def dft(values: np.ndarray) -> np.ndarray:
     n = values.size
     indices = np.arange(n)
     return np.exp(-2j * np.pi * np.outer(indices, indices) / n) @ values
-
-
-def inverse_dft(coefficients: np.ndarray) -> np.ndarray:
-    """Compute the inverse DFT matching the normalization used by ``dft``."""
-    coefficients = np.asarray(coefficients, dtype=complex)
-    n = coefficients.size
-    if n == 0:
-        raise ValueError("inverse_dft requires a non-empty array")
-    indices = np.arange(n)
-    return np.exp(2j * np.pi * np.outer(indices, indices) / n) @ coefficients / n
 
 
 def recursive_fft(values: np.ndarray) -> np.ndarray:
@@ -95,11 +84,6 @@ def run_checks() -> tuple[list[Check], dict[str, np.ndarray | float]]:
     signal = rng.normal(size=n)
     coefficients = dft(signal)
 
-    complex_signal = rng.normal(size=n) + 1j * rng.normal(size=n)
-    complex_coefficients = dft(complex_signal)
-    conjugated_signal_error = np.max(
-        np.abs(dft(np.conjugate(complex_signal)) - np.conjugate(complex_coefficients[(-np.arange(n)) % n]))
-    )
     symmetry_rhs = np.conjugate(coefficients[(-np.arange(n)) % n])
     symmetry_error = np.max(np.abs(coefficients - symmetry_rhs))
 
@@ -112,7 +96,6 @@ def run_checks() -> tuple[list[Check], dict[str, np.ndarray | float]]:
     signal_energy = np.sum(np.abs(signal) ** 2)
     coefficient_energy = np.sum(np.abs(coefficients) ** 2) / n
     parseval_error = abs(signal_energy - coefficient_energy)
-    inverse_error = np.max(np.abs(inverse_dft(coefficients) - signal))
 
     even, odd, combined = cooley_tukey_terms(signal)
     recursion_error = np.max(np.abs(combined - coefficients))
@@ -122,25 +105,18 @@ def run_checks() -> tuple[list[Check], dict[str, np.ndarray | float]]:
 
     checks = [
         Check(
-            "Conjugation identity",
-            float(conjugated_signal_error),
-            1e-10,
-            "For any signal, DFT(conjugate(a)) equals the conjugate of A at "
-            "the reversed index (−k) modulo N.",
-        ),
-        Check(
-            "Real-signal N-k symmetry",
+            "Conjugate symmetry",
             float(symmetry_error),
             1e-10,
-            "For real samples, A_k = conjugate(A_(N−k) mod N); therefore positive "
-            "and negative frequency bins contain conjugate information.",
+            "For a real signal, the coefficient at k equals the complex conjugate "
+            "of the coefficient at (−k) modulo N.",
         ),
         Check(
-            "DFT / inverse DFT",
-            float(inverse_error),
+            "Circular shift theorem",
+            float(shift_error),
             1e-10,
-            "Applying the inverse DFT to the DFT coefficients reconstructs the "
-            "original signal sample by sample.",
+            rf"Rolling the samples by $m={shift}$ multiplies $A_k$ by "
+            rf"$e^{{-2\pi i k m/N}}$.",
         ),
         Check(
             "Parseval theorem",
@@ -165,18 +141,14 @@ def run_checks() -> tuple[list[Check], dict[str, np.ndarray | float]]:
     data = {
         "signal": signal,
         "coefficients": coefficients,
-        "complex_signal": complex_signal,
-        "complex_coefficients": complex_coefficients,
         "shifted_coefficients": shifted_coefficients,
         "shift_prediction": shift_prediction,
-        "shift_error": float(shift_error),
         "even": even,
         "odd": odd,
         "combined": combined,
         "recursive_result": recursive_result,
         "signal_energy": signal_energy,
         "coefficient_energy": coefficient_energy,
-        "inverse_signal": inverse_dft(coefficients),
     }
     return checks, data
 
@@ -256,52 +228,12 @@ def create_plots(output_dir: Path, data: dict[str, np.ndarray | float]) -> list[
     return paths
 
 
-def create_radix2_plot(output_dir: Path) -> Path:
-    """Draw the three butterfly stages of an 8-point radix-2 FFT."""
-    figure, axis = plt.subplots(figsize=(11, 5.2))
-    stage_x = [0.0, 1.0, 2.0, 3.0]
-    labels = [f"a{index}" for index in range(8)]
-    y = np.arange(7, -1, -1)
-    axis.scatter([stage_x[0]] * 8, y, color="#17365D", zorder=3)
-    for position, label in zip(y, labels):
-        axis.text(stage_x[0] - 0.12, position, label, ha="right", va="center")
-
-    pairings = [
-        [(0, 4), (1, 5), (2, 6), (3, 7)],
-        [(0, 2), (1, 3), (4, 6), (5, 7)],
-        [(0, 1), (2, 3), (4, 5), (6, 7)],
-    ]
-    for stage, pairs in enumerate(pairings):
-        left_x, right_x = stage_x[stage], stage_x[stage + 1]
-        axis.scatter([right_x] * 8, y, color="#4F6B82", zorder=3)
-        for upper, lower in pairs:
-            axis.plot([left_x, right_x], [y[upper], y[upper]], color="#AAB7C4")
-            axis.plot([left_x, right_x], [y[lower], y[lower]], color="#AAB7C4")
-            axis.plot([left_x, right_x], [y[upper], y[lower]], color="#D95F02", alpha=0.8)
-            axis.plot([left_x, right_x], [y[lower], y[upper]], color="#D95F02", alpha=0.8)
-            axis.text((left_x + right_x) / 2, (y[upper] + y[lower]) / 2 + 0.12,
-                      "× ω", color="#D95F02", ha="center", fontsize=8)
-        axis.text(right_x, 7.65, f"stage {stage + 1}", ha="center", fontweight="bold")
-    for index, position in enumerate(y):
-        axis.text(stage_x[-1] + 0.12, position, f"X{index}", ha="left", va="center")
-    axis.set_xlim(-0.65, 3.65)
-    axis.set_ylim(-0.7, 7.9)
-    axis.axis("off")
-    axis.set_title("Radix-2 FFT: even/odd butterfly recombination for N = 8", pad=12)
-    figure.tight_layout()
-    path = output_dir / "radix2_butterfly.png"
-    figure.savefig(path, dpi=220, bbox_inches="tight")
-    plt.close(figure)
-    return path
-
-
 def build_pdf(
     output_dir: Path,
     checks: list[Check],
     data: dict[str, np.ndarray | float],
     plot_paths: list[Path],
     timing: tuple[np.ndarray, np.ndarray, np.ndarray],
-    radix2_plot_path: Path,
 ) -> Path:
     pdf_path = output_dir / "properties_dft_report.pdf"
     styles = getSampleStyleSheet()
@@ -328,10 +260,6 @@ def build_pdf(
             r"A_k=E_k+\omega_N^k O_k,\qquad A_{k+N/2}=E_k-\omega_N^k O_k",
             formula_dir / "recursion.png",
         ),
-        "inverse": _formula_image(
-            r"a_j = \frac{1}{N}\sum_{k=0}^{N-1} A_k\,e^{2\pi i k j/N}",
-            formula_dir / "inverse.png",
-        ),
     }
     document = SimpleDocTemplate(
         str(pdf_path),
@@ -353,7 +281,7 @@ def build_pdf(
         ),
         Image(str(formula_images["dft"]), width=10 * cm, height=0.9 * cm),
         Spacer(1, 0.35 * cm),
-        Paragraph("Numerical validation table", styles["Section"]),
+        Paragraph("Executive summary", styles["Section"]),
     ]
     result_rows = [["Property", "Maximum error", "Tolerance", "Status"]]
     for check in checks:
@@ -393,26 +321,6 @@ def build_pdf(
             f"coefficient energy / N = {float(data['coefficient_energy']):.8f}.",
             styles["BodySmall"],
         ),
-        Spacer(1, 0.2 * cm),
-        Paragraph(
-            "<b>Why are the triangle-wave coefficients purely real?</b> "
-            "The sampled triangle is real and even when it is centred at the origin. "
-            "In the DFT, the terms at +j and −j then pair to a cosine, so the sine "
-            "parts cancel and A_k is real. If the same triangle is shifted by m samples, "
-            "the shift theorem multiplies A_k by exp(−2πikm/N), adding a phase. "
-            "Thus the purely real coefficients are a consequence of centring/evenness, "
-            "not of the triangle shape alone. The numerical shift-theorem residual "
-            f"for the test signal is {float(data['shift_error']):.3e}.",
-            styles["BodySmall"],
-        ),
-        Spacer(1, 0.2 * cm),
-        Paragraph("The DFT and its inverse", styles["Section"]),
-        Image(str(formula_images["inverse"]), width=13 * cm, height=1.0 * cm),
-        Paragraph(
-            "The inverse contains the compensating factor 1/N. Numerically, the "
-            "DFT/inverse-DFT round trip is included in the validation table above.",
-            styles["BodySmall"],
-        ),
         PageBreak(),
         Paragraph("Cooley--Tukey recursion and radix-2 FFT", styles["Section"]),
         Paragraph(
@@ -424,26 +332,6 @@ def build_pdf(
             styles["BodyText"],
         ),
         Image(str(formula_images["recursion"]), width=13 * cm, height=1.0 * cm),
-        Spacer(1, 0.25 * cm),
-        Image(str(radix2_plot_path), width=17.6 * cm, height=8.3 * cm),
-        Paragraph(
-            "Each butterfly combines an even and an odd subtransform. The upper "
-            "output uses E + ωO and the lower output uses E − ωO; applying this "
-            "operation recursively is exactly what the code below implements.",
-            styles["BodySmall"],
-        ),
-        Preformatted(
-            "def recursive_fft(values):\n"
-            "    if len(values) == 1:\n"
-            "        return values.copy()\n"
-            "    even = recursive_fft(values[::2])\n"
-            "    odd = recursive_fft(values[1::2])\n"
-            "    twiddle = exp(-2j*pi*arange(N//2)/N)\n"
-            "    upper = even + twiddle * odd\n"
-            "    lower = even - twiddle * odd\n"
-            "    return concatenate((upper, lower))",
-            styles["Code"],
-        ),
         Spacer(1, 0.25 * cm),
     ]
     sizes, recursive_times, numpy_times = timing
@@ -493,9 +381,8 @@ def main() -> None:
 
     checks, data = run_checks()
     plot_paths = create_plots(args.output_dir, data)
-    radix2_plot_path = create_radix2_plot(args.output_dir)
     timing = benchmark_fft(args.output_dir)
-    pdf_path = build_pdf(args.output_dir, checks, data, plot_paths, timing, radix2_plot_path)
+    pdf_path = build_pdf(args.output_dir, checks, data, plot_paths, timing)
 
     print("DFT property checks")
     for check in checks:

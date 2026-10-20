@@ -1,13 +1,15 @@
 """Compare a naive DFT with NumPy's FFT.
 
 The default signal is the triangular wave from exercise_01.pdf.  Running this
-file creates four figures in ``exercise_01_output``:
+file creates six figures in ``exercise_01_output``:
 
 * the DFT amplitudes and all Fourier components,
 * coefficient and reconstruction errors relative to ``numpy.fft.fft``,
 * execution-time scaling,
 * sampling and observation-window effects compared with the analytic
-  Fourier series of the triangle wave.
+  Fourier series of the triangle wave,
+* the effect of changing ``dt`` and the triangle-wave period ``T``,
+* a visual explanation of Nyquist aliasing and high-frequency error.
 
 Examples
 --------
@@ -336,7 +338,7 @@ def plot_analytic_comparison(output_file: Path, show: bool) -> None:
         axes[0].plot(
             positive / (n / 2),
             np.abs(numerical[positive] - analytic),
-            "o",
+            "o--",
             ms=3,
             label=fr"$\Delta t={dt * 1e6:.1f}\,\mu$s",
         )
@@ -356,7 +358,7 @@ def plot_analytic_comparison(output_file: Path, show: bool) -> None:
         axes[1].plot(
             (positive / observation_time) / (1.0 / (2.0 * dt)),
             np.abs(numerical[positive] - analytic),
-            "o",
+            "o--",
             ms=3,
             label=fr"$T={period_time * 1e3:.1f}$ ms",
         )
@@ -375,6 +377,171 @@ def plot_analytic_comparison(output_file: Path, show: bool) -> None:
     if show:
         plt.show()
     plt.close(fig)
+
+
+def plot_sampling_parameter_effects(output_file: Path, show: bool) -> None:
+    """Show how dt and the observation period change the triangle-wave FFT."""
+    base_period = 2e-3
+    total_time = 8e-3
+    delta_times = np.array([15.625, 31.25, 62.5, 125.0]) * 1e-6
+    periods = np.array([1.0, 2.0, 4.0, 8.0]) * 1e-3
+    colors = plt.get_cmap("viridis")(np.linspace(0.12, 0.88, 4))
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5.5), sharey=True)
+
+    for color, dt in zip(colors, delta_times):
+        n = int(round(total_time / dt))
+        t = np.arange(n) * dt
+        numerical = np.fft.fft(triangle_signal(t, period=base_period)) / n
+        analytic = sampled_analytic_coefficients(n, periods=4)
+        frequencies = np.fft.fftfreq(n, d=dt)
+        positive = (frequencies > 0) & (frequencies <= 1.0 / (2.0 * dt))
+        axes[0].plot(
+            frequencies[positive] / 1e3,
+            np.abs(numerical[positive] - analytic[positive]) + 1e-16,
+            ".-",
+            color=color,
+            ms=3,
+            lw=0.8,
+            label=fr"$\Delta t={dt * 1e6:.1f}\,\mu$s, $N={n}$",
+        )
+
+    dt = delta_times[1]
+    n = int(round(total_time / dt))
+    t = np.arange(n) * dt
+    for color, period in zip(colors, periods):
+        number_of_periods = int(round(total_time / period))
+        numerical = np.fft.fft(triangle_signal(t, period=period)) / n
+        analytic = sampled_analytic_coefficients(n, periods=number_of_periods)
+        frequencies = np.fft.fftfreq(n, d=dt)
+        positive = (frequencies > 0) & (frequencies <= 1.0 / (2.0 * dt))
+        axes[1].plot(
+            frequencies[positive] / 1e3,
+            np.abs(numerical[positive] - analytic[positive]) + 1e-16,
+            ".-",
+            color=color,
+            ms=3,
+            lw=0.8,
+            label=fr"$T={period * 1e3:.1f}$ ms",
+        )
+
+    for axis in axes:
+        axis.set(
+            xlabel="frequency [kHz]",
+            ylabel="absolute coefficient error",
+            yscale="log",
+        )
+        axis.grid(True, which="both", ls=":", alpha=0.55)
+        axis.legend(fontsize=9, loc="upper right")
+    axes[0].set_title(r"Error while varying $\Delta t$ at fixed $T=2$ ms")
+    axes[1].set_title(r"Error while varying $T$ at fixed $\Delta t=31.25\,\mu$s")
+    fig.suptitle(
+        r"Sampling and observation-window effects for the triangle-wave FFT",
+        fontsize=15,
+    )
+    fig.text(
+        0.5,
+        0.01,
+        r"Error is measured against the analytic triangle-wave coefficients; "
+        r"smaller $\Delta t$ raises $f_N$, while larger $T$ improves frequency resolution.",
+        ha="center",
+        fontsize=10,
+    )
+    fig.tight_layout(rect=(0, 0.04, 1, 0.94))
+    fig.savefig(output_file, dpi=220, bbox_inches="tight")
+    if show:
+        plt.show()
+    plt.close(fig)
+
+
+def plot_nyquist_error_explanation(output_file: Path, show: bool) -> None:
+    """Illustrate high-frequency aliasing and its effect near Nyquist."""
+    period = 2e-3
+    dt = 125e-6
+    total_time = 8e-3
+    n = int(round(total_time / dt))
+    t = np.arange(n) * dt
+    frequencies = np.fft.fftfreq(n, d=dt)
+    positive = (frequencies > 0) & (frequencies <= 1.0 / (2.0 * dt))
+    sampled = np.abs(np.fft.fft(triangle_signal(t, period=period)) / n)
+
+    ideal = np.zeros_like(frequencies)
+    harmonics = np.rint(frequencies * period).astype(int)
+    valid = (frequencies > 0) & (harmonics > 0) & (harmonics % 2 == 1)
+    ideal[valid] = triangle_fourier_coefficient(harmonics[valid])
+    alias_error = np.abs(sampled - ideal)
+    nyquist = 1.0 / (2.0 * dt)
+
+    figure, axes = plt.subplots(1, 2, figsize=(14, 5.4))
+    axes[0].stem(
+        frequencies[positive] / 1e3,
+        ideal[positive],
+        linefmt="tab:blue",
+        markerfmt="o",
+        basefmt=" ",
+        label="ideal odd-harmonic spectrum",
+    )
+    axes[0].stem(
+        frequencies[positive] / 1e3,
+        sampled[positive],
+        linefmt="tab:orange",
+        markerfmt="x",
+        basefmt=" ",
+        label="sampled FFT",
+    )
+    axes[0].axvline(
+        nyquist / 1e3,
+        color="tab:red",
+        ls="--",
+        lw=1.5,
+        label="Nyquist frequency",
+    )
+    axes[0].set(
+        xlabel="frequency [kHz]",
+        ylabel=r"amplitude $|A_k|$",
+        title=fr"Harmonic folding for $\Delta t={dt * 1e6:.0f}\,\mu$s",
+        xlim=(0, 4.2),
+    )
+    axes[0].legend(fontsize=8)
+
+    normalized_frequency = frequencies[positive] / nyquist
+    axes[1].semilogy(
+        normalized_frequency,
+        alias_error[positive] + 1e-16,
+        "o-",
+        ms=3,
+        lw=1,
+        color="tab:purple",
+    )
+    axes[1].axvspan(0.8, 1.0, color="tab:red", alpha=0.12, label="near Nyquist")
+    axes[1].set(
+        xlabel=r"frequency / Nyquist frequency $f/f_N$",
+        ylabel="absolute aliasing error",
+        title="Why the high-frequency error increases",
+        xlim=(0, 1),
+    )
+    axes[1].text(
+        0.05,
+        0.08,
+        "Above $f_N$, higher harmonics cannot be represented\n"
+        "uniquely and fold back to lower frequencies.\n"
+        "The high-frequency tail is therefore mapped\n"
+        "into bins near the Nyquist limit.",
+        transform=axes[1].transAxes,
+        fontsize=9,
+        bbox={"boxstyle": "round,pad=0.45", "facecolor": "white", "alpha": 0.9},
+    )
+    for axis in axes:
+        axis.grid(True, which="both", ls=":", alpha=0.55)
+    figure.suptitle(
+        r"Nyquist limit and aliasing for the triangle-wave FFT",
+        fontsize=15,
+    )
+    figure.tight_layout(rect=(0, 0, 1, 0.94))
+    figure.savefig(output_file, dpi=220, bbox_inches="tight")
+    if show:
+        plt.show()
+    plt.close(figure)
 
 
 def parse_args() -> argparse.Namespace:
@@ -426,6 +593,14 @@ def main() -> None:
     )
     plot_timing(args.output_dir / "dft_vs_numpyfft_timing.png", args.show)
     plot_analytic_comparison(args.output_dir / "analytic_sampling_effects.png", args.show)
+    plot_sampling_parameter_effects(
+        args.output_dir / "triangle_sampling_parameter_effects.png",
+        args.show,
+    )
+    plot_nyquist_error_explanation(
+        args.output_dir / "triangle_nyquist_aliasing.png",
+        args.show,
+    )
     print(f"Figures saved to {args.output_dir.resolve()}")
 
 
