@@ -1,0 +1,3 @@
+configuration,ideal_delta_v_m_s,final_speed_m_s,net_speed_gain_m_s,estimated_gravity_and_steering_loss_m_s,final_specific_energy_J_kg,status
+one stage,10131.374409173803,9608.165666465266,9143.592346465266,987.7820627085366,-15883892.103891067,survives burn
+two stages,20262.748818347605,6602.289338245955,6137.716018245955,14125.03280010165,-40770475.208008796,crash
