@@ -1,0 +1,32 @@
+Task 1a: fixed grid N=800, dx=0.019975031
+  n=0: script=0.49998753088, analytic=0.5, abs_error=1.24691195303e-05
+  n=1: script=1.49993765316, analytic=1.5, abs_error=6.23468412053e-05
+  n=2: script=2.4998378946, analytic=2.5, abs_error=0.00016210539503
+  n=3: script=3.49968825149, analytic=3.5, abs_error=0.0003117485148
+  n=4: script=4.49948872007, analytic=4.5, abs_error=0.000511279934023
+  n=5: script=5.49923929661, analytic=5.5, abs_error=0.000760703387567
+  n=6: script=6.49893997739, analytic=6.5, abs_error=0.00106002261111
+  n=7: script=7.49859075866, analytic=7.5, abs_error=0.00140924134241
+  n=8: script=8.49819163668, analytic=8.5, abs_error=0.00180836331894
+  n=9: script=9.49774260772, analytic=9.5, abs_error=0.00225739227944
+  n=10: script=10.497243668, analytic=10.5, abs_error=0.00275633196354
+  n=11: script=11.4966948139, analytic=11.5, abs_error=0.00330518611038
+Task 1b: fixed grid N=1000, dx=0.000999001
+  n=1: script=4.93479815007, analytic=4.93480220054, abs_error=4.05047555496e-06
+  n=2: script=19.7391439927, analytic=19.7392088022, abs_error=6.48094947024e-05
+  n=3: script=44.4128917068, analytic=44.4132198049, abs_error=0.000328098056343
+  n=4: script=78.9557982589, analytic=78.9568352087, abs_error=0.00103694977938
+  n=5: script=123.367523405, analytic=123.370055014, abs_error=0.00253160837887
+  n=6: script=177.647629695, analytic=177.65287922, abs_error=0.00524952431459
+  n=7: script=241.795582476, analytic=241.805307827, abs_error=0.00972535048223
+  n=8: script=315.810749898, analytic=315.827340835, abs_error=0.0165909369477
+  n=9: script=399.692402919, analytic=399.718978244, abs_error=0.0265753247214
+  n=10: script=493.439715316, analytic=493.480220054, abs_error=0.0405047385809
+  n=11: script=597.051763687, analytic=597.111066266, abs_error=0.0593025789292
+  n=12: script=710.527527466, analytic=710.611516878, abs_error=0.083989412701
+Task 1c: fixed grid N=1200, dx=0.0099916736
+  exact bound states: 3
+  numerical bound states: 3
+  n=1: script=-9.17923230751, analytic=-9.18025992623, abs_error=0.00102761872091
+  n=2: script=-6.77520702144, analytic=-6.77906002141, abs_error=0.00385299997498
+  n=3: script=-3.04687054696, analytic=-3.05423350877, abs_error=0.00736296181021
